@@ -1,0 +1,6 @@
+wandb/
+outputs/
+mlruns/
+*.log
+*.pyc
+*.csv

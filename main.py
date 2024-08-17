@@ -1,7 +1,7 @@
 import mlflow
 import os
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
 
 # This automatically reads in the configuration
@@ -20,12 +20,11 @@ def go(config: DictConfig):
         # This was passed on the command line as a comma-separated list of steps
         steps_to_execute = config["main"]["execute_steps"].split(",")
     else:
-        assert isinstance(config["main"]["execute_steps"], list)
+        assert isinstance(config["main"]["execute_steps"], ListConfig)
         steps_to_execute = config["main"]["execute_steps"]
 
     # Download step
     if "download" in steps_to_execute:
-
         _ = mlflow.run(
             os.path.join(root_path, "download"),
             "main",
@@ -43,8 +42,8 @@ def go(config: DictConfig):
             os.path.join(root_path, "preprocess"),
             "main",
             parameters={
-                "input_artifact": "raw_data.parquet",
-                "artifact_name": "processed_data.csv",
+                "input_artifact": "raw_data.parquet:latest",
+                "artifact_name": "preprocessed_data.csv",
                 "artifact_type": "preprocessed_data",
                 "artifact_description": "Preprocessed data"
             },
@@ -57,7 +56,7 @@ def go(config: DictConfig):
             "main",
             parameters={
                 "reference_artifact": config["data"]["reference_dataset"],
-                "sample_artifact": "processed_data.csv",
+                "sample_artifact": "preprocessed_data.csv:latest",
                 "ks_alpha": config["data"]["ks_alpha"]
             },
         )
@@ -71,7 +70,7 @@ def go(config: DictConfig):
                 "artifact_root": "segregated_data",
                 "artifact_type": "segregated_data",
                 "test_size": config["data"]["test_size"],
-                "random_state": config["data"]["random_state"],
+                "random_state": config["main"]["random_seed"],
                 "stratify": config["data"]["stratify"],
             },
         )
@@ -89,10 +88,10 @@ def go(config: DictConfig):
             os.path.join(root_path, "random_forest"),
             "main",
             parameters={
-                "train_data": "segregated_data_train.csv",
+                "train_data": "segregated_data_train.csv:latest",
                 "model_config": model_config,
                 "export_artifact": config["random_forest_pipeline"]["export_artifact"],
-                "random_state": config["data"]["random_state"],
+                "random_seed": config["random_forest_pipeline"]["random_forest"]["random_state"],
                 "val_size": config["data"]["val_size"],
                 "stratify": config["data"]["stratify"],
             },
@@ -102,11 +101,11 @@ def go(config: DictConfig):
 
         ## YOUR CODE HERE: call the evaluate step
         _ = mlflow.run(
-            os.path.join(root_path, "random_forest"),
+            os.path.join(root_path, "evaluate"),
             "main",
             parameters={
-                "export_artifact": config["random_forest_pipeline"]["export_artifact"],
-                "test_data": "segregated_data_test.csv",
+                "model_export": f'{config["random_forest_pipeline"]["export_artifact"]}:latest',
+                "test_data": "segregated_data_test.csv:latest",
             },
         )
 
